@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>GitHub Pure JS Document Reader</title>
+</head>
+<body style="font-family: Arial, sans-serif; max-width: 650px; margin: 40px auto; padding: 20px;">
+
+  <h2>GitHub Local Search Engine (No AI API)</h2>
+
+  <!-- Step 1: Loaded Context Preview -->
+  <div style="margin-bottom: 20px;">
+    <label style="font-weight: bold; display: block; margin-bottom: 8px;">1. Raw Text Loaded from GitHub 'docs/' Folder:</label>
+    <textarea id="knowledgeBase" rows="8" style="width: 100%; padding: 8px; box-sizing: border-box;" readonly placeholder="Loading files from GitHub repo..."></textarea>
+  </div>
+
+  <!-- Step 2: Query Input -->
+  <div style="margin-bottom: 20px;">
+    <label style="font-weight: bold; display: block; margin-bottom: 8px;">2. Ask Question:</label>
+    <input type="text" id="userQuery" style="width: 75%; padding: 8px;" placeholder="Type keywords (e.g., relativity, energy)..." />
+    <button onclick="searchDocs()" style="padding: 8px 16px; background-color: #007bff; color: white; border: none; cursor: pointer;">Search</button>
+  </div>
+
+  <!-- Step 3: Search Output -->
+  <div>
+    <label style="font-weight: bold; display: block; margin-bottom: 8px;">Matched Result:</label>
+    <div id="responseOutput" style="min-height: 80px; padding: 12px; background-color: #f8f9fa; border: 1px solid #ddd; white-space: pre-wrap;">Awaiting input...</div>
+  </div>
+
+  <script>
+    // ⚠️ APNI REPOSITORY KI DETAILS YAHAN DAALEIN ⚠️
+    const GITHUB_USERNAME = "your-github-username";
+    const REPO_NAME = "your-repo-name";
+    const FOLDER_PATH = "Docs";
+
+    let allDocsData = []; // Files ka structure store karne ke liye
+
+    // GitHub API se saari files read karna
+    async function loadGitHubDocs() {
+      const textarea = document.getElementById('knowledgeBase');
+      textarea.value = "Fetching repository files...";
+
+      const folderUrl = `https://api.github.com/repos/${GITHUB_USERNAME}/${REPO_NAME}/contents/${FOLDER_PATH}`;
+
+      try {
+        const response = await fetch(folderUrl);
+        if (!response.ok) throw new Error("Folder access failed. Check repo name.");
+
+        const files = await response.json();
+        let fullCombinedText = "";
+        allDocsData = [];
+
+        for (const file of files) {
+          if (file.name.endsWith('.txt') && file.download_url) {
+            const fileRes = await fetch(file.download_url);
+            const text = await fileRes.text();
+            
+            allDocsData.push({ fileName: file.name, content: text });
+            fullCombinedText += `\n--- Document: ${file.name} ---\n${text}\n`;
+          }
+        }
+
+        textarea.value = fullCombinedText || "No .txt files found in 'docs/' folder.";
+      } catch (err) {
+        textarea.value = "Error: " + err.message;
+      }
+    }
+
+    // Pure JavaScript Search Logic (No AI API)
+    function searchDocs() {
+      const query = document.getElementById('userQuery').value.trim().toLowerCase();
+      const outputDiv = document.getElementById('responseOutput');
+
+      if (!query) {
+        alert("Please enter a search prompt.");
+        return;
+      }
+
+      if (allDocsData.length === 0) {
+        outputDiv.innerText = "No documents loaded yet.";
+        return;
+      }
+
+      const keywords = query.split(' ').filter(word => word.length > 2);
+      let matches = [];
+
+      // Har document ke paragraphs/sentences check karna
+      allDocsData.forEach(doc => {
+        const paragraphs = doc.content.split('\n');
+        
+        paragraphs.forEach(para => {
+          if (!para.trim()) return;
+          
+          let score = 0;
+          keywords.forEach(kw => {
+            if (para.toLowerCase().includes(kw)) {
+              score++;
+            }
+          });
+
+          if (score > 0) {
+            matches.push({
+              file: doc.fileName,
+              text: para.trim(),
+              score: score
+            });
+          }
+        });
+      });
+
+      // Matches ko score ke hisab se sort karna
+      matches.sort((a, b) => b.score - a.score);
+
+      if (matches.length > 0) {
+        let resultText = `Found ${matches.length} matching section(s):\n\n`;
+        matches.slice(0, 3).forEach((m, index) => {
+          resultText += `[${index + 1}] File: ${m.file}\n"${m.text}"\n\n`;
+        });
+        outputDiv.innerText = resultText;
+      } else {
+        outputDiv.innerText = "No relevant lines found matching your query keywords in the docs.";
+      }
+    }
+
+    window.onload = loadGitHubDocs;
+  </script>
+
+</body>
+</html>
